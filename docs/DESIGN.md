@@ -29,7 +29,7 @@ Portfolio goal: a market-data pipeline (snapshot ingestion → time-series → O
 - IngestionModule — hourly job: fetch → stream-parse → per-item aggregates → batch insert; idempotent per snapshot
 - MarketModule — hourly → daily OHLC rollups, top movers
 - ItemsModule — item name/icon/quality cached from Blizzard item endpoint
-- ApiModule — REST endpoints for the frontend
+- REST API — controllers live in their feature modules (ItemsModule, MarketModule), Nest convention; served under /api, OpenAPI docs at /docs
 - AlertsModule (v1.5) — evaluate watchlists after each snapshot, notify Discord
 
 ## Data model

@@ -2,11 +2,10 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ResilienceModule } from '@nestjs/resilience';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { blizzardConfig } from './config/blizzard.config';
 import { type Env, envSchema } from './config/env.schema';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { ItemsModule } from './items/items.module';
 import { MarketModule } from './market/market.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -32,8 +31,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     IngestionModule,
     MarketModule,
+    ItemsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
