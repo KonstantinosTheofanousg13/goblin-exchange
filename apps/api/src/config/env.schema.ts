@@ -11,8 +11,7 @@ const optionalString = z
  * Missing or malformed values fail the boot with a clear error,
  * instead of failing hours later inside a job.
  *
- * Only add variables here when code starts using them
- * (REDIS_URL arrives with BullMQ).
+ * Only add variables here when code starts using them.
  */
 export const envSchema = z.object({
   NODE_ENV: z
@@ -21,6 +20,7 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
 
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  REDIS_URL: z.url({ protocol: /^rediss?$/ }),
 
   // TODO: make required once Blizzard API credentials are available.
   BLIZZARD_CLIENT_ID: optionalString,
