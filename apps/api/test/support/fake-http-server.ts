@@ -14,7 +14,9 @@ export interface RecordedRequest {
 
 export interface FakeResponse {
   status: number;
+  /** Objects are sent as JSON; strings are sent as-is (e.g. a fixture file). */
   body?: unknown;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -41,8 +43,13 @@ export class FakeHttpServer {
         status: 500,
         body: { error: 'FakeHttpServer: no response queued for this request' },
       };
-      res.writeHead(next.status, { 'Content-Type': 'application/json' });
-      res.end(next.body === undefined ? '' : JSON.stringify(next.body));
+      res.writeHead(next.status, {
+        'Content-Type': 'application/json',
+        ...next.headers,
+      });
+      if (next.body === undefined) res.end();
+      else if (typeof next.body === 'string') res.end(next.body);
+      else res.end(JSON.stringify(next.body));
     });
   });
 
