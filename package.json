@@ -7,5 +7,10 @@
   ],
   "engines": {
     "node": ">=22.12"
+  },
+  "scripts": {
+    "dev:api": "npm run start:dev -w @goblin-exchange/api",
+    "dev:web": "npm run dev -w @goblin-exchange/web",
+    "test": "npm test --workspaces"
   }
 }

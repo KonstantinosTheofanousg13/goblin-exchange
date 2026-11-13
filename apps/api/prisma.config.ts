@@ -9,6 +9,8 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    // Dev-only fake data (`npm run db:seed`). ts-node compiles to CommonJS like the app.
+    seed: 'ts-node --transpile-only prisma/seed.ts',
   },
   datasource: {
     url: env('DATABASE_URL'),
