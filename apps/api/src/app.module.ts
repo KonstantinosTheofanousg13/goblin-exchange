@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { BlizzardModule } from './blizzard/blizzard.module';
 import { blizzardConfig } from './config/blizzard.config';
 import { envSchema } from './config/env.schema';
 
@@ -14,6 +15,7 @@ import { envSchema } from './config/env.schema';
       validationSchema: envSchema,
       load: [blizzardConfig],
     }),
+    BlizzardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
