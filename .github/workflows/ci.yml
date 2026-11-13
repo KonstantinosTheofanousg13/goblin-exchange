@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch/PR cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # `npm ci` runs `prisma generate` (postinstall), and prisma.config.ts reads DATABASE_URL,
+  # so every job needs one, even jobs without a database.
+  DATABASE_URL: postgresql://goblin:goblin@localhost:5432/goblin_exchange
+  REDIS_URL: redis://localhost:6379
+
+jobs:
+  api:
+    name: API (lint, build, unit + e2e tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Same images as docker-compose.yml; e2e tests run against them.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: goblin
+          POSTGRES_PASSWORD: goblin
+          POSTGRES_DB: goblin_exchange
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U goblin -d goblin_exchange"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint -w @goblin-exchange/api
+
+      - name: Build
+        run: npm run build -w @goblin-exchange/api
+
+      - name: Unit tests
+        run: npm test -w @goblin-exchange/api
+
+      - name: Apply migrations
+        run: npm run db:deploy -w @goblin-exchange/api
+
+      - name: E2E tests
+        run: npm run test:e2e -w @goblin-exchange/api
+
+  web:
+    name: Web (lint, build, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint -w @goblin-exchange/web
+
+      - name: Build
+        run: npm run build -w @goblin-exchange/web
+
+      - name: Tests
+        run: npm test -w @goblin-exchange/web

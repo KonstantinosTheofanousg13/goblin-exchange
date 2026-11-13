@@ -38,6 +38,7 @@ async function readAll(stream: Readable): Promise<string> {
 
 describe('BlizzardClient', () => {
   let blizzard: FakeHttpServer;
+  let warn: jest.SpyInstance;
 
   const token = (access_token = 'token-1') => ({
     status: 200,
@@ -78,7 +79,7 @@ describe('BlizzardClient', () => {
     blizzard = new FakeHttpServer();
     await blizzard.start();
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(async () => {
@@ -229,7 +230,7 @@ describe('BlizzardClient', () => {
       expect(error).toMatchObject({ name: 'TypeError', message: 'fetch failed' });
       // Token cached after attempt 1, so only one token request; 3 failed API attempts.
       expect(blizzard.requests).toHaveLength(1);
-      expect(Logger.prototype.warn).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledTimes(2);
     });
 
     it('logs a warning for each retry', async () => {
@@ -239,7 +240,7 @@ describe('BlizzardClient', () => {
       const result = await client.fetchCommodities();
       if (result.status === 'ok') result.body.destroy();
 
-      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+      expect(warn).toHaveBeenCalledWith(
         expect.stringMatching(
           /^BlizzardClient\.fetchCommodities: attempt 1 failed \(.*HTTP 503\), retrying in \d+ms$/,
         ),
