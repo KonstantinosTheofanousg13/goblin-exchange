@@ -12,6 +12,22 @@ export interface ItemSearchResult {
   name: string | null
   icon: string | null
   quality: string | null
+  classId: number | null
+  subclassId: number | null
+}
+
+/** An auction house category: a Blizzard item class and its subclasses. */
+export interface Category {
+  classId: number
+  name: string
+  subcategories: { subclassId: number; name: string }[]
+}
+
+/** Browse filters; at least one of search or classId must be set. */
+export interface ItemFilter {
+  search?: string
+  classId?: number
+  subclassId?: number
 }
 
 export interface ItemSummary {
@@ -92,8 +108,10 @@ async function get<T>(path: string, params: Params = {}, signal?: AbortSignal): 
 }
 
 export const api = {
-  searchItems: (search: string, signal?: AbortSignal) =>
-    get<ItemSearchResult[]>('/api/items', { search, limit: 30 }, signal),
+  searchItems: (filter: ItemFilter, signal?: AbortSignal) =>
+    get<ItemSearchResult[]>('/api/items', { ...filter, limit: 50 }, signal),
+
+  categories: (signal?: AbortSignal) => get<Category[]>('/api/items/categories', {}, signal),
 
   itemSummary: (id: number, signal?: AbortSignal) => get<ItemSummary>(`/api/items/${id}`, {}, signal),
 
