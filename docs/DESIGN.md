@@ -46,6 +46,8 @@ Goal: feels like the in-game auction house browser, with an original, modern loo
   - Results columns: icon, name (quality colour), price as gold/silver/copper coins, quantity listed, 24h change, 7-day sparkline; sortable
   - Empty state (no search yet) = market pulse: top risers and fallers with icons and sparklines, plus most-listed items
 - Item page: icon + name header, current price, 24h/7d change, lowest listing, quantity, candle/line chart (hourly/daily)
+- Data freshness: header shows "Data from 14:05 · 23 min ago" (amber after 90 min = missed snapshot). Only GET /api/market/status polls (every 2 min); a newer snapshot invalidates all other queries
+  - Latency is bounded by Blizzard: ~hourly snapshots + our 15-min poll = new listings show up after 15–75 min; listings bought between snapshots are never seen. This is an hourly-bar tracker, not a live order book
 - API additions: a browse endpoint (search + category filter + sort, returning price, change and sparkline points per row); icons and quality on movers and most-listed
 
 ## Data model
