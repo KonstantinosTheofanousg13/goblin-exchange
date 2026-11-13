@@ -12,7 +12,8 @@ Portfolio goal: a market-data pipeline (snapshot ingestion → time-series → O
 - v1.5: watchlist + price alerts via Discord bot
 
 ## Stack
-- Backend: NestJS (TypeScript), Postgres + Prisma, Redis + BullMQ (jobs)
+- Backend: NestJS 12 (TypeScript, CommonJS), Postgres + Prisma 7, Redis + BullMQ (jobs)
+  - Prisma 7, not 8: 8 is a pre-1.0 rewrite (contract file, new query API); 7 is the stable, widely used line
 - Frontend: React + Vite, TradingView Lightweight Charts
 - Infra: Docker Compose, GitHub Actions CI, Hetzner VPS later
 - Repo: monorepo with npm workspaces — apps/api, apps/web
@@ -31,11 +32,13 @@ Portfolio goal: a market-data pipeline (snapshot ingestion → time-series → O
 - ApiModule — REST endpoints for the frontend
 - AlertsModule (v1.5) — evaluate watchlists after each snapshot, notify Discord
 
-## Data model (draft)
-- item: id, name, icon, quality
-- snapshot: id, region, fetched_at, last_modified (unique → idempotency)
-- item_price_hourly: item, hour, min price, market price (avg of cheapest ~15% quantity), total quantity, listing count
-- item_price_daily: OHLC rolled up from hourly
+## Data model
+- item: id (Blizzard item id), name, icon, quality (name/icon/quality filled in later by ItemsModule)
+- snapshot: id, region, fetched_at, last_modified, auction_count ((region, last_modified) unique → idempotency)
+- item_price_hourly: one row per (snapshot, item): captured_at, min price, market price (avg of cheapest ~15% quantity), total quantity, listing count
+  - Keyed per snapshot, not per clock hour: Blizzard publishes "about hourly" with drift, so two snapshots can land in the same hour
+- item_price_daily: OHLC rolled up from hourly (grouped by time)
+- Prices are BigInt copper (1 gold = 10,000 copper): never floats, and the gold cap (10^11 copper) exceeds a 32-bit int
 - Raw auctions are not kept long-term (only latest snapshot, for v2 features)
 
 ## v2 ideas
