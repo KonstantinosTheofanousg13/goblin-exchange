@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { blizzardConfig } from './config/blizzard.config';
 import { type Env, envSchema } from './config/env.schema';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { MarketModule } from './market/market.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
     PrismaModule,
     IngestionModule,
+    MarketModule,
   ],
   controllers: [AppController],
   providers: [AppService],
