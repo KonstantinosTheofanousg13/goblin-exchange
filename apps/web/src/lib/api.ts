@@ -77,6 +77,12 @@ export interface ListedItem {
   listingCount: number
 }
 
+/** Data freshness: when Blizzard took the newest snapshot, and when we fetched it. */
+export interface MarketStatus {
+  snapshotAt: string | null
+  fetchedAt: string | null
+}
+
 /** A non-2xx response. `messages` holds the API's validation reasons, if any. */
 export class ApiError extends Error {
   readonly status: number
@@ -120,6 +126,8 @@ export const api = {
 
   movers: (window: MoverWindow, direction: 'up' | 'down', signal?: AbortSignal) =>
     get<Mover[]>('/api/market/movers', { window, direction, limit: 10 }, signal),
+
+  status: (signal?: AbortSignal) => get<MarketStatus>('/api/market/status', {}, signal),
 
   mostListed: (signal?: AbortSignal) => get<ListedItem[]>('/api/market/most-listed', { limit: 10 }, signal),
 }

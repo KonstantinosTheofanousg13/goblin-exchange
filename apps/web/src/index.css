@@ -104,8 +104,35 @@ button {
 .brand:hover {
   text-decoration: none;
 }
-.region {
+.header-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.freshness-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--up);
+  box-shadow: 0 0 6px var(--up);
+}
+.freshness.stale {
+  color: var(--accent);
+}
+.freshness.stale .freshness-dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.region {
   color: var(--muted);
   font-size: 0.8rem;
   border: 1px solid var(--border);

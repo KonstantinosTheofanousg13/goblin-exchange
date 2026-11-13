@@ -1,4 +1,5 @@
 import { Link, Outlet } from 'react-router'
+import { DataFreshness } from '../components/DataFreshness'
 
 export function Layout() {
   return (
@@ -8,7 +9,10 @@ export function Layout() {
           <img src="/favicon.svg" alt="" width={30} height={30} />
           <span>Goblin Exchange</span>
         </Link>
-        <span className="region">EU · Commodities</span>
+        <span className="header-right">
+          <DataFreshness />
+          <span className="region">EU · Commodities</span>
+        </span>
       </header>
       <main className="main">
         <Outlet />
