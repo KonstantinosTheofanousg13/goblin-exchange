@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ResilienceModule } from '@nestjs/resilience';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BlizzardModule } from './blizzard/blizzard.module';
@@ -15,6 +16,8 @@ import { envSchema } from './config/env.schema';
       validationSchema: envSchema,
       load: [blizzardConfig],
     }),
+    // Global: lets any module create retry/timeout/circuit-breaker policies.
+    ResilienceModule.forRoot(),
     BlizzardModule,
   ],
   controllers: [AppController],

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { blizzardConfig, type BlizzardConfig } from '../config/blizzard.config';
+import { BlizzardAuthError } from './blizzard.errors';
 
 /** Refresh this long before the token actually expires, so it never dies mid-request. */
 const REFRESH_MARGIN_MS = 60_000;
@@ -10,10 +11,6 @@ const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().positive(), // seconds
 });
-
-export class BlizzardAuthError extends Error {
-  override readonly name = 'BlizzardAuthError';
-}
 
 /**
  * OAuth client-credentials flow against Blizzard, with an in-memory token cache.
@@ -67,6 +64,7 @@ export class BlizzardAuthService {
     if (!response.ok) {
       throw new BlizzardAuthError(
         `Blizzard token request failed: HTTP ${response.status}`,
+        response.status,
       );
     }
 

@@ -1,21 +1,20 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  ResilienceEvents,
+  type ResiliencePolicy,
+  type ResiliencePreset,
+  ResilienceService,
+} from '@nestjs/resilience';
 import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { blizzardConfig, type BlizzardConfig } from '../config/blizzard.config';
 import { BlizzardAuthService } from './blizzard-auth.service';
+import { BlizzardApiError } from './blizzard.errors';
+import { BLIZZARD_RESILIENCE_OPTIONS } from './blizzard.resilience';
 
 /** The commodities payload is tens of MB; allow time for the whole download. */
 const COMMODITIES_TIMEOUT_MS = 120_000;
-
-export class BlizzardApiError extends Error {
-  override readonly name = 'BlizzardApiError';
-  constructor(
-    message: string,
-    readonly status?: number,
-  ) {
-    super(message);
-  }
-}
+const POLICY_NAME = 'blizzard';
 
 export type CommoditiesResult =
   /** Nothing changed since `ifModifiedSince`: skip this run. */
@@ -28,22 +27,53 @@ export type CommoditiesResult =
 
 @Injectable()
 export class BlizzardClient {
+  private readonly logger = new Logger(BlizzardClient.name);
+  private readonly policy: ResiliencePolicy;
+
   constructor(
     @Inject(blizzardConfig.KEY) private readonly config: BlizzardConfig,
     private readonly auth: BlizzardAuthService,
-  ) {}
+    resilience: ResilienceService,
+    resilienceEvents: ResilienceEvents,
+    @Inject(BLIZZARD_RESILIENCE_OPTIONS) resilienceOptions: ResiliencePreset,
+  ) {
+    // Create the policy once: it holds state (and would hold a breaker's, if we add one).
+    this.policy = resilience.create(resilienceOptions, POLICY_NAME);
 
-  /** Region-wide commodity auctions (one call covers the whole region). */
-  async fetchCommodities(ifModifiedSince?: Date): Promise<CommoditiesResult> {
+    resilienceEvents.events$.subscribe((event) => {
+      if (event.type === 'retry' && event.policy === POLICY_NAME) {
+        const reason = event.error instanceof Error ? event.error.message : String(event.error);
+        this.logger.warn(
+          `${event.source ?? POLICY_NAME}: attempt ${event.attempt} failed (${reason}), retrying in ${event.delayMs}ms`,
+        );
+      }
+    });
+  }
+
+  /**
+   * Region-wide commodity auctions (one call covers the whole region).
+   * Transient failures (5xx, 408, 429, network errors, timeouts) are retried with backoff.
+   */
+  fetchCommodities(ifModifiedSince?: Date): Promise<CommoditiesResult> {
+    return this.policy.execute(
+      ({ signal }) => this.fetchCommoditiesOnce(signal, ifModifiedSince),
+      { source: 'BlizzardClient.fetchCommodities' },
+    );
+  }
+
+  private async fetchCommoditiesOnce(
+    signal: AbortSignal,
+    ifModifiedSince?: Date,
+  ): Promise<CommoditiesResult> {
     const url = new URL('/data/wow/auctions/commodities', this.config.apiBaseUrl);
     url.searchParams.set('namespace', `dynamic-${this.config.region}`);
 
-    let response = await this.get(url, ifModifiedSince);
+    let response = await this.get(url, signal, ifModifiedSince);
     if (response.status === 401) {
       // Token was revoked or expired early: get a fresh one and retry once.
       await response.body?.cancel();
       this.auth.invalidate();
-      response = await this.get(url, ifModifiedSince);
+      response = await this.get(url, signal, ifModifiedSince);
     }
 
     if (response.status === 304) {
@@ -73,7 +103,11 @@ export class BlizzardClient {
     };
   }
 
-  private async get(url: URL, ifModifiedSince?: Date): Promise<Response> {
+  private async get(
+    url: URL,
+    signal: AbortSignal,
+    ifModifiedSince?: Date,
+  ): Promise<Response> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${await this.auth.getAccessToken()}`,
       Accept: 'application/json',
@@ -83,7 +117,8 @@ export class BlizzardClient {
     }
     return fetch(url, {
       headers,
-      signal: AbortSignal.timeout(COMMODITIES_TIMEOUT_MS),
+      // Abort on our own timeout, or when the policy cancels the execution.
+      signal: AbortSignal.any([signal, AbortSignal.timeout(COMMODITIES_TIMEOUT_MS)]),
     });
   }
 }
