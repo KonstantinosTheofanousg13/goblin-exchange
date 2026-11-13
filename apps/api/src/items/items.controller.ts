@@ -1,4 +1,10 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { ApiNotFoundResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { openApi } from '../common/openapi';
@@ -6,6 +12,7 @@ import { MarketService } from '../market/market.service';
 import {
   type CandlesQuery,
   candlesQuerySchema,
+  categorySchema,
   type CandlesResponse,
   candlesResponseSchema,
   itemIdSchema,
@@ -19,6 +26,7 @@ import {
   toItemSearchResults,
   toItemSummaryResponse,
 } from './items.schemas';
+import { CATEGORIES, type Category } from './categories';
 import { type ItemSearchResult, ItemsService } from './items.service';
 
 @ApiTags('items')
@@ -34,7 +42,15 @@ export class ItemsController {
   async search(
     @Query({ schema: searchItemsQuerySchema }) query: SearchItemsQuery,
   ): Promise<ItemSearchResult[]> {
-    return toItemSearchResults(await this.items.search(query.search, query.limit));
+    const { limit, ...filter } = query;
+    return toItemSearchResults(await this.items.search(filter, limit));
+  }
+
+  // Declared before ':id', which would otherwise capture "categories" and reject it as a non-numeric id.
+  @Get('categories')
+  @ApiOkResponse({ schema: openApi(z.array(categorySchema)) })
+  categories(): Category[] {
+    return CATEGORIES;
   }
 
   @Get(':id')
@@ -57,7 +73,12 @@ export class ItemsController {
     @Query({ schema: candlesQuerySchema }) query: CandlesQuery,
   ): Promise<CandlesResponse> {
     const range = resolveCandleRange(query);
-    const candles = await this.market.getCandles(id, query.interval, range.from, range.to);
+    const candles = await this.market.getCandles(
+      id,
+      query.interval,
+      range.from,
+      range.to,
+    );
     return toCandlesResponse(id, query.interval, range, candles);
   }
 }

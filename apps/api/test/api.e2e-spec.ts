@@ -5,7 +5,10 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
-import { blizzardConfig, type BlizzardConfig } from '../src/config/blizzard.config';
+import {
+  blizzardConfig,
+  type BlizzardConfig,
+} from '../src/config/blizzard.config';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
@@ -17,11 +20,15 @@ describe('REST API (e2e)', () => {
   const BASE_ID = 930_000_000 + (process.pid % 1_000_000) * 10;
   const [HERB, ORE] = [BASE_ID, BASE_ID + 1];
   const TAG = `zz${process.pid}`; // unique text so name search only finds our items
+  const CLASS = 999; // a class id no seeded or real item uses, so category filters only find our items
 
   let app: INestApplication<App>;
   let prisma: PrismaService;
 
-  async function seedSnapshot(at: string, prices: Record<number, [number, number]>) {
+  async function seedSnapshot(
+    at: string,
+    prices: Record<number, [number, number]>,
+  ) {
     const capturedAt = new Date(at);
     await prisma.snapshot.create({
       data: {
@@ -56,13 +63,31 @@ describe('REST API (e2e)', () => {
 
     await prisma.item.createMany({
       data: [
-        { id: HERB, name: `Mycobloom ${TAG}`, quality: 'COMMON' },
-        { id: ORE, name: `Bismuth ${TAG}`, quality: 'COMMON' },
+        {
+          id: HERB,
+          name: `Mycobloom ${TAG}`,
+          quality: 'COMMON',
+          classId: CLASS,
+          subclassId: 9,
+        },
+        {
+          id: ORE,
+          name: `Bismuth ${TAG}`,
+          quality: 'COMMON',
+          classId: CLASS,
+          subclassId: 7,
+        },
       ],
     });
     // A huge price, to prove it survives as a string: 10M gold = 10^11 copper.
-    await seedSnapshot('2026-11-12T09:00:00Z', { [HERB]: [100_000_000_000, 500], [ORE]: [1000, 200] });
-    await seedSnapshot('2026-11-13T10:00:00Z', { [HERB]: [110_000_000_000, 600], [ORE]: [800, 300] });
+    await seedSnapshot('2026-11-12T09:00:00Z', {
+      [HERB]: [100_000_000_000, 500],
+      [ORE]: [1000, 200],
+    });
+    await seedSnapshot('2026-11-13T10:00:00Z', {
+      [HERB]: [110_000_000_000, 600],
+      [ORE]: [800, 300],
+    });
   });
 
   afterAll(async () => {
@@ -76,18 +101,97 @@ describe('REST API (e2e)', () => {
 
   describe('GET /api/items', () => {
     it('searches items by name, case-insensitively', async () => {
-      const res = await http().get('/api/items').query({ search: TAG.toUpperCase() }).expect(200);
+      const res = await http()
+        .get('/api/items')
+        .query({ search: TAG.toUpperCase() })
+        .expect(200);
 
       expect(res.body).toEqual([
-        { id: ORE, name: `Bismuth ${TAG}`, icon: null, quality: 'COMMON' },
-        { id: HERB, name: `Mycobloom ${TAG}`, icon: null, quality: 'COMMON' },
+        {
+          id: ORE,
+          name: `Bismuth ${TAG}`,
+          icon: null,
+          quality: 'COMMON',
+          classId: CLASS,
+          subclassId: 7,
+        },
+        {
+          id: HERB,
+          name: `Mycobloom ${TAG}`,
+          icon: null,
+          quality: 'COMMON',
+          classId: CLASS,
+          subclassId: 9,
+        },
       ]);
     });
 
+    it('lists a whole category without a search term', async () => {
+      const res = await http()
+        .get('/api/items')
+        .query({ classId: CLASS })
+        .expect(200);
+
+      expect(res.body.map((i: { id: number }) => i.id)).toEqual([ORE, HERB]);
+    });
+
+    it('narrows to a subcategory', async () => {
+      const res = await http()
+        .get('/api/items')
+        .query({ classId: CLASS, subclassId: 9 })
+        .expect(200);
+
+      expect(res.body.map((i: { id: number }) => i.id)).toEqual([HERB]);
+    });
+
+    it('combines a search term with a category', async () => {
+      const res = await http()
+        .get('/api/items')
+        .query({ search: 'bismuth', classId: CLASS })
+        .expect(200);
+
+      expect(res.body.map((i: { id: number }) => i.id)).toEqual([ORE]);
+    });
+
+    it('rejects a request with neither a search term nor a category', async () => {
+      const res = await http().get('/api/items').expect(400);
+
+      expect(res.body.message).toEqual(['search or classId is required']);
+    });
+
+    it('rejects a subclass without its class', async () => {
+      const res = await http()
+        .get('/api/items')
+        .query({ subclassId: 9 })
+        .expect(400);
+
+      expect(res.body.message).toEqual(
+        expect.arrayContaining(['subclassId: subclassId requires classId']),
+      );
+    });
+
     it('rejects a too-short search term with a 400 explaining why', async () => {
-      const res = await http().get('/api/items').query({ search: 'a' }).expect(400);
+      const res = await http()
+        .get('/api/items')
+        .query({ search: 'a' })
+        .expect(400);
 
       expect(res.body.message).toEqual([expect.stringMatching(/^search: /)]);
+    });
+  });
+
+  describe('GET /api/items/categories', () => {
+    it('returns the category tree (and is not mistaken for an item id)', async () => {
+      const res = await http().get('/api/items/categories').expect(200);
+
+      const tradeGoods = res.body.find(
+        (c: { classId: number }) => c.classId === 7,
+      );
+      expect(tradeGoods.name).toBe('Trade Goods');
+      expect(tradeGoods.subcategories).toContainEqual({
+        subclassId: 9,
+        name: 'Herb',
+      });
     });
   });
 
@@ -123,7 +227,11 @@ describe('REST API (e2e)', () => {
     it('returns daily candles with string prices', async () => {
       const res = await http()
         .get(`/api/items/${ORE}/candles`)
-        .query({ interval: 'day', from: '2026-11-12T00:00:00Z', to: '2026-11-14T00:00:00Z' })
+        .query({
+          interval: 'day',
+          from: '2026-11-12T00:00:00Z',
+          to: '2026-11-14T00:00:00Z',
+        })
         .expect(200);
 
       expect(res.body).toEqual({
@@ -132,8 +240,24 @@ describe('REST API (e2e)', () => {
         from: '2026-11-12T00:00:00.000Z',
         to: '2026-11-14T00:00:00.000Z',
         candles: [
-          { time: '2026-11-12T00:00:00.000Z', open: '1000', high: '1000', low: '1000', close: '1000', avgQuantity: 200, points: 1 },
-          { time: '2026-11-13T00:00:00.000Z', open: '800', high: '800', low: '800', close: '800', avgQuantity: 300, points: 1 },
+          {
+            time: '2026-11-12T00:00:00.000Z',
+            open: '1000',
+            high: '1000',
+            low: '1000',
+            close: '1000',
+            avgQuantity: 200,
+            points: 1,
+          },
+          {
+            time: '2026-11-13T00:00:00.000Z',
+            open: '800',
+            high: '800',
+            low: '800',
+            close: '800',
+            avgQuantity: 300,
+            points: 1,
+          },
         ],
       });
     });
@@ -149,10 +273,25 @@ describe('REST API (e2e)', () => {
     it.each([
       ['an unknown interval', { interval: 'week' }, /^interval: /],
       ['an invalid date', { from: 'yesterday' }, /^from: /],
-      ['from after to', { from: '2026-11-13T00:00:00Z', to: '2026-11-12T00:00:00Z' }, /^from: must be before to/],
-      ['a range too large', { interval: 'hour', from: '2026-01-01T00:00:00Z', to: '2026-11-01T00:00:00Z' }, /^from: range too large/],
+      [
+        'from after to',
+        { from: '2026-11-13T00:00:00Z', to: '2026-11-12T00:00:00Z' },
+        /^from: must be before to/,
+      ],
+      [
+        'a range too large',
+        {
+          interval: 'hour',
+          from: '2026-01-01T00:00:00Z',
+          to: '2026-11-01T00:00:00Z',
+        },
+        /^from: range too large/,
+      ],
     ])('rejects %s with a 400', async (_case, query, message) => {
-      const res = await http().get(`/api/items/${ORE}/candles`).query(query).expect(400);
+      const res = await http()
+        .get(`/api/items/${ORE}/candles`)
+        .query(query)
+        .expect(400);
 
       expect(res.body.message).toEqual([expect.stringMatching(message)]);
     });
@@ -176,16 +315,30 @@ describe('REST API (e2e)', () => {
     });
 
     it('lists fallers for direction=down', async () => {
-      const res = await http().get('/api/market/movers').query({ direction: 'down', limit: 1 }).expect(200);
+      const res = await http()
+        .get('/api/market/movers')
+        .query({ direction: 'down', limit: 1 })
+        .expect(200);
 
-      expect(res.body).toEqual([expect.objectContaining({ itemId: ORE, changePercent: -20 })]);
+      expect(res.body).toEqual([
+        expect.objectContaining({ itemId: ORE, changePercent: -20 }),
+      ]);
     });
 
     it('lists the most listed items', async () => {
-      const res = await http().get('/api/market/most-listed').query({ limit: 1 }).expect(200);
+      const res = await http()
+        .get('/api/market/most-listed')
+        .query({ limit: 1 })
+        .expect(200);
 
       expect(res.body).toEqual([
-        { itemId: HERB, name: `Mycobloom ${TAG}`, marketPrice: '110000000000', totalQuantity: 600, listingCount: 3 },
+        {
+          itemId: HERB,
+          name: `Mycobloom ${TAG}`,
+          marketPrice: '110000000000',
+          totalQuantity: 600,
+          listingCount: 3,
+        },
       ]);
     });
 
@@ -201,6 +354,7 @@ describe('REST API (e2e)', () => {
 
       expect(Object.keys(paths).sort()).toEqual([
         '/api/items',
+        '/api/items/categories',
         '/api/items/{id}',
         '/api/items/{id}/candles',
         '/api/market/most-listed',
@@ -209,7 +363,9 @@ describe('REST API (e2e)', () => {
       const candleParams = paths['/api/items/{id}/candles'].get.parameters.map(
         (p: { name: string }) => p.name,
       );
-      expect(candleParams).toEqual(expect.arrayContaining(['id', 'interval', 'from', 'to']));
+      expect(candleParams).toEqual(
+        expect.arrayContaining(['id', 'interval', 'from', 'to']),
+      );
     });
   });
 });
