@@ -1,11 +1,12 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ResilienceModule } from '@nestjs/resilience';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BlizzardModule } from './blizzard/blizzard.module';
 import { blizzardConfig } from './config/blizzard.config';
-import { envSchema } from './config/env.schema';
+import { type Env, envSchema } from './config/env.schema';
+import { IngestionModule } from './ingestion/ingestion.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -19,8 +20,16 @@ import { PrismaModule } from './prisma/prisma.module';
     }),
     // Global: lets any module create retry/timeout/circuit-breaker policies.
     ResilienceModule.forRoot(),
+    // Shared Redis connection for every BullMQ queue and worker.
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => ({
+        connection: { url: config.get('REDIS_URL', { infer: true }) },
+        prefix: 'goblin',
+      }),
+    }),
     PrismaModule,
-    BlizzardModule,
+    IngestionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
