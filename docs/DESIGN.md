@@ -60,9 +60,19 @@ Goal: feels like the in-game auction house browser, with an original, modern loo
 - Prices are BigInt copper (1 gold = 10,000 copper): never floats, and the gold cap (10^11 copper) exceeds a 32-bit int
 - Raw auctions are not kept long-term (only latest snapshot, for v2 features)
 
+## Open decisions (decide once Blizzard API keys work)
+- Sidebar categories: keep the commodity-only list, build it from the item classes actually present in commodity data (preferred), or show the full in-game list with realm-only categories greyed out as "coming in v2"
+- Verify the hard-coded class/subclass ids in `apps/api/src/items/categories.ts` against GET /data/wow/item-class/index
+
 ## v2 ideas
 - Estimated sales: listings that disappear between snapshots before expiry → probably sold
 - Realm (non-commodity) auctions, crafting profit calculator, US region
+- Multiple game versions with a version switch in the UI (Retail / Classic / WoW Forever, the level-60 Classic-style version with enhanced graphics)
+  - Same API key; the version is picked by namespace (e.g. `dynamic-eu` for retail, `dynamic-classic-eu` / `dynamic-classic1x-eu` for Classic). WoW Forever's namespace and AH endpoint still need checking
+  - Classic-style auction houses are per connected realm (and per faction), not region-wide: needs a realm (and faction) picker, and one ingestion job per realm group, so watch the 1 GB VPS
+  - Data model: snapshot gets `game_version`, `connected_realm_id` and `auction_house_id` (faction) next to `region`; candles, movers and alerts are then scoped by them. Stream parser, candles and charts stay the same
+  - Plan: finish and deploy retail v1 first; keep step-2 changes compatible with adding these columns later
+
 
 ## Timeline (~2 weeks)
 - Days 1–2: repo, Docker, Blizzard OAuth, first commodities fetch
