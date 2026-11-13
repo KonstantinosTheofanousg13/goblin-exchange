@@ -1,0 +1,11 @@
+{
+  "name": "goblin-exchange",
+  "private": true,
+  "description": "WoW Auction House market tracker — EU commodities price history, candles and alerts",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}
