@@ -9,7 +9,7 @@ Portfolio goal: a market-data pipeline (snapshot ingestion → time-series → O
 - Item page: candle chart (hourly/daily OHLC), current price, quantity listed, 24h/7d change
 - Market overview: top risers/fallers, most listed items
 - Item search by name
-- v1.5: watchlist + price alerts via Discord bot
+- v1.5: watchlist + price alerts, delivered through n8n (see Alerts)
 
 ## Stack
 - Backend: NestJS 12 (TypeScript, CommonJS), Postgres + Prisma 7, Redis + BullMQ (jobs)
@@ -28,9 +28,25 @@ Portfolio goal: a market-data pipeline (snapshot ingestion → time-series → O
 - BlizzardModule — OAuth token cache, HTTP client with retries/backoff
 - IngestionModule — hourly job: fetch → stream-parse → per-item aggregates → batch insert; idempotent per snapshot
 - MarketModule — hourly → daily OHLC rollups, top movers
-- ItemsModule — item name/icon/quality cached from Blizzard item endpoint
+- ItemsModule — item name, quality, icon URL and item class/subclass, cached from Blizzard's item and item-media endpoints (background job for items with missing metadata; rate-limited)
 - REST API — controllers live in their feature modules (ItemsModule, MarketModule), Nest convention; served under /api, OpenAPI docs at /docs
-- AlertsModule (v1.5) — evaluate watchlists after each snapshot, notify Discord
+- AlertsModule (v1.5) — evaluate watchlist rules after each snapshot, hand fired alerts to n8n
+
+## Alerts (v1.5)
+- Rules: per item, e.g. "market price below X", "above X", "moved more than N% in 24h"
+- Evaluation stays in NestJS: runs after each ingestion job, against the new item_price_hourly rows. Business logic stays typed and unit-tested
+- Delivery goes to n8n: Nest POSTs a signed (HMAC) alert event to an n8n webhook, and n8n fans it out (Discord, email via the existing SMTP credential)
+  - Why: n8n already runs on the VPS with notification credentials, and channels can change without redeploying the API. Nest owns *what* fires; n8n owns *where it goes* (like a Camel route with pluggable endpoints)
+  - The call stays on the internal Docker network (`http://n8n:5678/webhook/...`); no public Caddy route is needed
+- De-duplication: a rule fires once, then re-arms only after the condition clears (no hourly spam)
+
+## Frontend (v1.1 redesign)
+Goal: feels like the in-game auction house browser, with an original, modern look (no copied game UI art).
+- Home = browse screen: a prominent search box, a category sidebar (item class: Trade Goods, Consumables, ...), and a results table
+  - Results columns: icon, name (quality colour), price as gold/silver/copper coins, quantity listed, 24h change, 7-day sparkline; sortable
+  - Empty state (no search yet) = market pulse: top risers and fallers with icons and sparklines, plus most-listed items
+- Item page: icon + name header, current price, 24h/7d change, lowest listing, quantity, candle/line chart (hourly/daily)
+- API additions: a browse endpoint (search + category filter + sort, returning price, change and sparkline points per row); icons and quality on movers and most-listed
 
 ## Data model
 - item: id (Blizzard item id), name, icon, quality (name/icon/quality filled in later by ItemsModule)
