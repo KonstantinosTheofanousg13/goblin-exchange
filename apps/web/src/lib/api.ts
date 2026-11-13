@@ -93,7 +93,7 @@ async function get<T>(path: string, params: Params = {}, signal?: AbortSignal): 
 
 export const api = {
   searchItems: (search: string, signal?: AbortSignal) =>
-    get<ItemSearchResult[]>('/api/items', { search, limit: 8 }, signal),
+    get<ItemSearchResult[]>('/api/items', { search, limit: 30 }, signal),
 
   itemSummary: (id: number, signal?: AbortSignal) => get<ItemSummary>(`/api/items/${id}`, {}, signal),
 
