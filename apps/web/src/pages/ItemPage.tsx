@@ -83,14 +83,14 @@ export function ItemPage() {
           <div className="toggle" role="group" aria-label="Candle interval">
             {(['hour', 'day'] as const).map((i) => (
               <button key={i} aria-pressed={i === interval} onClick={() => setParams({ interval: i })}>
-                {i === 'hour' ? '1H · 7 days' : '1D · 90 days'}
+                {i === 'hour' ? 'Hourly · 7 days' : 'Daily · 90 days'}
               </button>
             ))}
           </div>
         </div>
         {candles.isPending && <Loading />}
         {candles.isError && <ErrorMessage error={candles.error} />}
-        {candles.data && <PriceChart candles={candles.data.candles} />}
+        {candles.data && <PriceChart candles={candles.data.candles} interval={candles.data.interval} />}
       </section>
     </>
   )

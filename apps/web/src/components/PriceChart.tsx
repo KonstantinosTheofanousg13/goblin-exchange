@@ -5,10 +5,11 @@ import {
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
+  LineSeries,
   type UTCTimestamp,
 } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
-import type { Candle } from '../lib/api'
+import type { Candle, CandleInterval } from '../lib/api'
 import { copperToGold, formatGold, formatQuantity } from '../lib/money'
 
 const COLORS = {
@@ -16,18 +17,22 @@ const COLORS = {
   grid: '#1f2630',
   up: '#3fb950',
   down: '#f85149',
+  line: '#e3b341',
   volume: 'rgba(227, 179, 65, 0.35)',
 }
 
 /**
- * Candlestick chart of the market price (in gold), with average listed quantity
- * underneath as a volume-like histogram. Uses TradingView Lightweight Charts;
- * its attribution logo stays on, as its licence asks.
+ * Market price (in gold) with average listed quantity underneath as a volume-like
+ * histogram. Daily data is drawn as candles; hourly data as a line, because
+ * Blizzard publishes about one snapshot per hour, so an hourly "candle" would be
+ * a single price (open = high = low = close).
+ * Uses TradingView Lightweight Charts; its attribution logo stays on, as its licence asks.
  */
-export function PriceChart({ candles }: { candles: Candle[] }) {
+export function PriceChart({ candles, interval }: { candles: Candle[]; interval: CandleInterval }) {
   const container = useRef<HTMLDivElement>(null)
   const chart = useRef<IChartApi | null>(null)
   const priceSeries = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const lineSeries = useRef<ISeriesApi<'Line'> | null>(null)
   const quantitySeries = useRef<ISeriesApi<'Histogram'> | null>(null)
 
   // Create the chart once; React only feeds it data afterwards.
@@ -43,7 +48,8 @@ export function PriceChart({ candles }: { candles: Candle[] }) {
       grid: { vertLines: { color: COLORS.grid }, horzLines: { color: COLORS.grid } },
       timeScale: { timeVisible: true, secondsVisible: false, borderColor: COLORS.grid },
       rightPriceScale: { borderColor: COLORS.grid },
-      localization: { priceFormatter: formatGold },
+      // No chart-wide localization.priceFormatter: it would override each series'
+      // own format and label the quantity pane in gold.
     })
     priceSeries.current = c.addSeries(CandlestickSeries, {
       upColor: COLORS.up,
@@ -51,6 +57,11 @@ export function PriceChart({ candles }: { candles: Candle[] }) {
       wickUpColor: COLORS.up,
       wickDownColor: COLORS.down,
       borderVisible: false,
+      priceFormat: { type: 'custom', formatter: formatGold, minMove: 0.0001 },
+    })
+    lineSeries.current = c.addSeries(LineSeries, {
+      color: COLORS.line,
+      lineWidth: 2,
       priceFormat: { type: 'custom', formatter: formatGold, minMove: 0.0001 },
     })
     // Second pane (index 1) below the candles.
@@ -72,18 +83,24 @@ export function PriceChart({ candles }: { candles: Candle[] }) {
 
   useEffect(() => {
     const time = (iso: string) => (Date.parse(iso) / 1000) as UTCTimestamp
+    const asCandles = interval === 'day'
     priceSeries.current?.setData(
-      candles.map((c) => ({
-        time: time(c.time),
-        open: copperToGold(c.open),
-        high: copperToGold(c.high),
-        low: copperToGold(c.low),
-        close: copperToGold(c.close),
-      })),
+      asCandles
+        ? candles.map((c) => ({
+            time: time(c.time),
+            open: copperToGold(c.open),
+            high: copperToGold(c.high),
+            low: copperToGold(c.low),
+            close: copperToGold(c.close),
+          }))
+        : [],
+    )
+    lineSeries.current?.setData(
+      asCandles ? [] : candles.map((c) => ({ time: time(c.time), value: copperToGold(c.close) })),
     )
     quantitySeries.current?.setData(candles.map((c) => ({ time: time(c.time), value: c.avgQuantity })))
     chart.current?.timeScale().fitContent()
-  }, [candles])
+  }, [candles, interval])
 
   return <div className="chart" ref={container} />
 }
