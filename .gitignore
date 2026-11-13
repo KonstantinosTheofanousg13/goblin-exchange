@@ -7,6 +7,9 @@ build/
 coverage/
 *.tsbuildinfo
 
+# generated code (recreated by `prisma generate`, which runs on npm install)
+apps/api/src/generated/
+
 # env / secrets
 .env
 .env.*

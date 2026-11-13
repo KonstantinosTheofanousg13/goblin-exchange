@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { BlizzardModule } from './blizzard/blizzard.module';
 import { blizzardConfig } from './config/blizzard.config';
 import { envSchema } from './config/env.schema';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { envSchema } from './config/env.schema';
     }),
     // Global: lets any module create retry/timeout/circuit-breaker policies.
     ResilienceModule.forRoot(),
+    PrismaModule,
     BlizzardModule,
   ],
   controllers: [AppController],

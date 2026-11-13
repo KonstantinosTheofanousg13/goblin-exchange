@@ -16,7 +16,7 @@ Goblin Exchange: a WoW Auction House market tracker for EU commodities (price hi
   - JPA / Hibernate → Prisma
   - Camel routes → Node streams / events / BullMQ jobs
 - **Work one step at a time.** Finish and explain one step before starting the next.
-- **Ask before running any command**, except git commands, docker commands and running tests, which can be run without asking.
+- **Run git, docker and npm commands (including tests) without asking.** Ask before other commands, and before opening a PR.
 
 ## Decisions already made (don't re-litigate)
 - v1 scope: EU region + commodities only.
