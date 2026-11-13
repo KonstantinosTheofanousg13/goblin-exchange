@@ -11,6 +11,15 @@ import { PrismaModule } from '../src/prisma/prisma.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { FakeHttpServer } from './support/fake-http-server';
 
+/** Polls until `condition` holds (fails the test after `timeoutMs`). */
+async function waitFor(condition: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error('waitFor: condition not met in time');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 /**
  * Full ingestion run: fake Blizzard (local HTTP server) → real stream parsing →
  * real Postgres from docker-compose. Uses its own region and item ids, cleaned up after.
@@ -150,12 +159,18 @@ describe('Ingestion (e2e)', () => {
   });
 
   it('stores a snapshot only once when two runs race', async () => {
-    blizzard.enqueue(token(), snapshot(LM1), snapshot(LM1));
+    // Hold both snapshot responses until both requests have arrived: by then both runs
+    // have looked up the latest snapshot and neither has stored one, so they really race
+    // on the insert. (Without the gate, timing decides; on a slow CI runner the second
+    // lookup came after the first commit and returned 'unchanged' instead.)
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    blizzard.enqueue(token(), { ...snapshot(LM1), gate }, { ...snapshot(LM1), gate });
 
-    const results = await Promise.all([
-      ingestion.ingestCommodities(),
-      ingestion.ingestCommodities(),
-    ]);
+    const runs = Promise.all([ingestion.ingestCommodities(), ingestion.ingestCommodities()]);
+    await waitFor(() => blizzard.requests.filter((r) => r.method === 'GET').length === 2);
+    release();
+    const results = await runs;
 
     expect(results.map((r) => r.status).sort()).toEqual(['duplicate', 'ingested']);
     expect(await prisma.snapshot.count({ where: { region: REGION } })).toBe(1);

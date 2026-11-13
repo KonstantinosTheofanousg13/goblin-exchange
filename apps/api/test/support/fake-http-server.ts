@@ -17,6 +17,8 @@ export interface FakeResponse {
   /** Objects are sent as JSON; strings are sent as-is (e.g. a fixture file). */
   body?: unknown;
   headers?: Record<string, string>;
+  /** Hold the response until this promise resolves (to make races deterministic). */
+  gate?: Promise<void>;
 }
 
 /**
@@ -32,7 +34,7 @@ export class FakeHttpServer {
   private readonly server: Server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => {
+    req.on('end', async () => {
       this.requests.push({
         method: req.method ?? '',
         path: req.url ?? '',
@@ -43,6 +45,7 @@ export class FakeHttpServer {
         status: 500,
         body: { error: 'FakeHttpServer: no response queued for this request' },
       };
+      await next.gate;
       res.writeHead(next.status, {
         'Content-Type': 'application/json',
         ...next.headers,
