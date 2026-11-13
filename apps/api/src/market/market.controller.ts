@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { openApi } from '../common/openapi';
 import {
   type ListedItemResponse,
+  type MarketStatusResponse,
+  marketStatusResponseSchema,
+  toMarketStatusResponse,
   listedItemResponseSchema,
   type MostListedQuery,
   mostListedQuerySchema,
@@ -26,6 +29,12 @@ export class MarketController {
   async movers(@Query({ schema: moversQuerySchema }) query: MoversQuery): Promise<MoverResponse[]> {
     const movers = await this.market.getTopMovers(query);
     return movers.map(toMoverResponse);
+  }
+
+  @Get('status')
+  @ApiOkResponse({ schema: openApi(marketStatusResponseSchema) })
+  async status(): Promise<MarketStatusResponse> {
+    return toMarketStatusResponse(await this.market.getStatus());
   }
 
   @Get('most-listed')

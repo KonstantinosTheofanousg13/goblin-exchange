@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { copperSchema } from '../common/openapi';
-import type { ListedItem, Mover } from './market.service';
+import { copperSchema, isoDateSchema } from '../common/openapi';
+import type { ListedItem, MarketStatus, Mover } from './market.service';
 
 // ---- Requests ----
 
@@ -55,4 +55,17 @@ export function toMoverResponse(mover: Mover): MoverResponse {
 
 export function toListedItemResponse(item: ListedItem): ListedItemResponse {
   return { ...item, marketPrice: item.marketPrice.toString() };
+}
+
+export const marketStatusResponseSchema = z.object({
+  snapshotAt: isoDateSchema.nullable().describe('When Blizzard took the newest snapshot'),
+  fetchedAt: isoDateSchema.nullable().describe('When we ingested it'),
+});
+export type MarketStatusResponse = z.infer<typeof marketStatusResponseSchema>;
+
+export function toMarketStatusResponse(status: MarketStatus): MarketStatusResponse {
+  return {
+    snapshotAt: status.snapshotAt?.toISOString() ?? null,
+    fetchedAt: status.fetchedAt?.toISOString() ?? null,
+  };
 }

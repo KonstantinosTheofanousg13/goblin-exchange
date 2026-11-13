@@ -325,6 +325,15 @@ describe('REST API (e2e)', () => {
       ]);
     });
 
+    it('reports when the newest snapshot was taken and fetched', async () => {
+      const res = await http().get('/api/market/status').expect(200);
+
+      expect(res.body).toEqual({
+        snapshotAt: '2026-11-13T10:00:00.000Z',
+        fetchedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      });
+    });
+
     it('lists the most listed items', async () => {
       const res = await http()
         .get('/api/market/most-listed')
@@ -359,6 +368,7 @@ describe('REST API (e2e)', () => {
         '/api/items/{id}/candles',
         '/api/market/most-listed',
         '/api/market/movers',
+        '/api/market/status',
       ]);
       const candleParams = paths['/api/items/{id}/candles'].get.parameters.map(
         (p: { name: string }) => p.name,

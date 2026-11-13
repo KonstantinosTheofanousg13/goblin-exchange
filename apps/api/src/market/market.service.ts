@@ -60,6 +60,11 @@ const WINDOW_INTERVAL: Record<MoverWindow, string> = { '24h': '24 hours', '7d': 
  * Everything is plain SQL ($queryRaw): window-style aggregation is where
  * Postgres shines and an ORM's query builder doesn't reach.
  */
+export interface MarketStatus {
+  snapshotAt: Date | null;
+  fetchedAt: Date | null;
+}
+
 @Injectable()
 export class MarketService {
   constructor(
@@ -167,6 +172,19 @@ export class MarketService {
       FROM cur
       JOIN item i ON i.id = cur.item_id`;
     return rows[0] ?? null;
+  }
+
+  /**
+   * How fresh the data is: when Blizzard took the newest snapshot (its Last-Modified)
+   * and when we fetched it. Null before the first ingestion.
+   */
+  async getStatus(): Promise<MarketStatus> {
+    const latest = await this.prisma.snapshot.findFirst({
+      where: { region: this.config.region },
+      orderBy: { lastModified: 'desc' },
+      select: { lastModified: true, fetchedAt: true },
+    });
+    return { snapshotAt: latest?.lastModified ?? null, fetchedAt: latest?.fetchedAt ?? null };
   }
 
   private latestSnapshot(): Prisma.Sql {
