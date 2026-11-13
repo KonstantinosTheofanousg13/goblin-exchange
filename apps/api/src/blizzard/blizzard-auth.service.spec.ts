@@ -1,7 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { FakeHttpServer } from '../../test/support/fake-http-server';
 import { blizzardConfig, type BlizzardConfig } from '../config/blizzard.config';
-import { BlizzardAuthError, BlizzardAuthService } from './blizzard-auth.service';
+import { BlizzardAuthService } from './blizzard-auth.service';
+import { BlizzardAuthError } from './blizzard.errors';
 
 describe('BlizzardAuthService', () => {
   let blizzard: FakeHttpServer;
