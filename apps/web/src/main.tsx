@@ -5,7 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router'
 import './index.css'
 import { ApiError } from './lib/api'
 import { Layout } from './pages/Layout'
-import { MarketPage } from './pages/MarketPage'
+import { BrowsePage } from './pages/BrowsePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,7 +23,7 @@ const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      { path: '/', element: <MarketPage /> },
+      { path: '/', element: <BrowsePage /> },
       {
         path: '/items/:id',
         // Loaded on first visit: keeps the chart library out of the initial bundle.

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Change } from '../components/Change'
+import { ItemIcon } from '../components/ItemIcon'
 import { Money } from '../components/Money'
 import { PriceChart } from '../components/PriceChart'
 import { ErrorMessage, Loading } from '../components/Status'
@@ -11,6 +12,9 @@ import { formatQuantity } from '../lib/money'
 export function ItemPage() {
   const id = Number(useParams().id)
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
+  // 'default' = this page was opened directly (no history to go back to).
+  const canGoBack = useLocation().key !== 'default'
   const interval: CandleInterval = params.get('interval') === 'hour' ? 'hour' : 'day'
 
   const summary = useQuery({
@@ -37,11 +41,17 @@ export function ItemPage() {
   const item = summary.data
   return (
     <>
-      <div className="page-title">
-        <h1>{item.name ?? `Item #${item.itemId}`}</h1>
-        <span className="muted">
-          Updated {new Date(item.capturedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-        </span>
+      <button className="back-link" onClick={() => (canGoBack ? navigate(-1) : navigate('/'))}>
+        ← Back to auction house
+      </button>
+      <div className="item-header">
+        <ItemIcon name={item.name} size="lg" />
+        <div>
+          <h1>{item.name ?? `Item #${item.itemId}`}</h1>
+          <span className="muted">
+            Updated {new Date(item.capturedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+          </span>
+        </div>
       </div>
 
       <dl className="stats">
@@ -101,7 +111,7 @@ function NotFound() {
     <div className="status">
       <h1>No price data</h1>
       <p className="muted">
-        This item has no listings in our snapshots. <Link to="/">Back to the market overview</Link>
+        This item has no listings in our snapshots. <Link to="/">Back to the auction house</Link>
       </p>
     </div>
   )

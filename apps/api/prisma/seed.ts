@@ -55,6 +55,43 @@ const ITEMS: [string, string, number, number][] = [
   ['Phoenix Ash', 'RARE', 2_900, 260],
 ];
 
+/**
+ * Auction house category per item: [Blizzard item class id, subclass id].
+ * See src/items/categories.ts for the names (7 = Trade Goods, 0 = Consumables, 3 = Gems).
+ */
+const CATEGORY: Record<string, [number, number]> = {
+  Emberleaf: [7, 9],
+  Duskthorn: [7, 9],
+  Moonpetal: [7, 9],
+  'Gloomcap Spore': [7, 9],
+  'Starsilver Ore': [7, 7],
+  'Ironvein Ore': [7, 7],
+  'Cinderite Ore': [7, 7],
+  'Tempered Ingot': [7, 7],
+  'Gloomhide Leather': [7, 6],
+  Stormscale: [7, 6],
+  'Wyrmbone Fragment': [7, 6],
+  'Weavecloth Bolt': [7, 5],
+  'Spellthread Spool': [7, 5],
+  'Arcane Dust': [7, 12],
+  'Resonant Shard': [7, 12],
+  'Riverfin Snapper': [7, 8],
+  'Deepwater Eel': [7, 8],
+  'Glowfang Steak': [7, 8],
+  'Sunroot Tuber': [7, 8],
+  'Runic Ink': [7, 16],
+  'Gilded Parchment': [7, 16],
+  'Ley Crystal': [7, 10],
+  'Phoenix Ash': [7, 10],
+  'Flux Powder': [7, 1],
+  'Alchemical Catalyst': [7, 11],
+  'Titan Resin': [7, 18],
+  Frostberry: [0, 5],
+  'Elixir Base': [0, 2],
+  'Prismatic Crystal': [3, 10],
+  Voidstone: [3, 9],
+};
+
 /** Small deterministic PRNG (mulberry32), so seeds are reproducible. */
 function prng(seed: number): () => number {
   return () => {
@@ -79,10 +116,22 @@ async function main() {
   });
 
   try {
+    // Item metadata is always upserted, so re-running the seed after a schema change
+    // (e.g. new category columns) updates existing items without wiping price history.
+    for (const [i, [name, quality]] of ITEMS.entries()) {
+      const [classId, subclassId] = CATEGORY[name];
+      const data = { name, quality, classId, subclassId };
+      await prisma.item.upsert({
+        where: { id: FIRST_ITEM_ID + i },
+        create: { id: FIRST_ITEM_ID + i, ...data },
+        update: data,
+      });
+    }
+
     const existing = await prisma.snapshot.count();
     if (existing > 0 && !force) {
       console.error(
-        `Database already has ${existing} snapshots; not seeding. Use --force to add seed data anyway, ` +
+        `Item metadata updated. Database already has ${existing} snapshots, so no price history was added. Use --force to add seed data anyway, ` +
           'or wipe first with `npx prisma migrate reset` (in apps/api).',
       );
       process.exitCode = 1;
@@ -90,10 +139,6 @@ async function main() {
     }
 
     const random = prng(42);
-    await prisma.item.createMany({
-      data: ITEMS.map(([name, quality], i) => ({ id: FIRST_ITEM_ID + i, name, quality })),
-      skipDuplicates: true,
-    });
 
     // Per item: current price (gold), hourly volatility, and a slow drift that flips now and then.
     const state = ITEMS.map(([, , startGold]) => ({
@@ -116,19 +161,31 @@ async function main() {
         const s = state[i];
         if (random() < 0.01) s.drift = (random() - 0.5) * 0.004; // occasional trend change
         const shock = random() < 0.004 ? (random() - 0.4) * 0.5 : 0; // rare spike/crash
-        s.price = Math.max(0.01, s.price * (1 + s.drift + s.volatility * gaussian(random) + shock));
+        s.price = Math.max(
+          0.01,
+          s.price * (1 + s.drift + s.volatility * gaussian(random) + shock),
+        );
 
-        const dailyCycle = 1 + 0.25 * Math.sin(((capturedAt.getUTCHours() - 6) / 24) * 2 * Math.PI);
-        const totalQuantity = Math.max(1, Math.round(baseQuantity * dailyCycle * (0.85 + random() * 0.3)));
+        const dailyCycle =
+          1 +
+          0.25 * Math.sin(((capturedAt.getUTCHours() - 6) / 24) * 2 * Math.PI);
+        const totalQuantity = Math.max(
+          1,
+          Math.round(baseQuantity * dailyCycle * (0.85 + random() * 0.3)),
+        );
         const marketPrice = BigInt(Math.round(s.price * COPPER_PER_GOLD));
-        const minPrice = (marketPrice * BigInt(970 + Math.floor(random() * 25))) / 1000n;
+        const minPrice =
+          (marketPrice * BigInt(970 + Math.floor(random() * 25))) / 1000n;
         return {
           itemId: FIRST_ITEM_ID + i,
           capturedAt,
           minPrice,
           marketPrice,
           totalQuantity,
-          listingCount: Math.max(1, Math.round(totalQuantity / (40 + random() * 160))),
+          listingCount: Math.max(
+            1,
+            Math.round(totalQuantity / (40 + random() * 160)),
+          ),
         };
       });
 
@@ -143,7 +200,9 @@ async function main() {
       created++;
     }
 
-    console.log(`Seeded ${ITEMS.length} items and ${created} hourly snapshots (${DAYS} days, region ${REGION}).`);
+    console.log(
+      `Seeded ${ITEMS.length} items and ${created} hourly snapshots (${DAYS} days, region ${REGION}).`,
+    );
   } finally {
     await prisma.$disconnect();
   }

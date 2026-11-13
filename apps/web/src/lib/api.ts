@@ -12,6 +12,22 @@ export interface ItemSearchResult {
   name: string | null
   icon: string | null
   quality: string | null
+  classId: number | null
+  subclassId: number | null
+}
+
+/** An auction house category: a Blizzard item class and its subclasses. */
+export interface Category {
+  classId: number
+  name: string
+  subcategories: { subclassId: number; name: string }[]
+}
+
+/** Browse filters; at least one of search or classId must be set. */
+export interface ItemFilter {
+  search?: string
+  classId?: number
+  subclassId?: number
 }
 
 export interface ItemSummary {
@@ -61,6 +77,12 @@ export interface ListedItem {
   listingCount: number
 }
 
+/** Data freshness: when Blizzard took the newest snapshot, and when we fetched it. */
+export interface MarketStatus {
+  snapshotAt: string | null
+  fetchedAt: string | null
+}
+
 /** A non-2xx response. `messages` holds the API's validation reasons, if any. */
 export class ApiError extends Error {
   readonly status: number
@@ -92,8 +114,10 @@ async function get<T>(path: string, params: Params = {}, signal?: AbortSignal): 
 }
 
 export const api = {
-  searchItems: (search: string, signal?: AbortSignal) =>
-    get<ItemSearchResult[]>('/api/items', { search, limit: 8 }, signal),
+  searchItems: (filter: ItemFilter, signal?: AbortSignal) =>
+    get<ItemSearchResult[]>('/api/items', { ...filter, limit: 50 }, signal),
+
+  categories: (signal?: AbortSignal) => get<Category[]>('/api/items/categories', {}, signal),
 
   itemSummary: (id: number, signal?: AbortSignal) => get<ItemSummary>(`/api/items/${id}`, {}, signal),
 
@@ -102,6 +126,8 @@ export const api = {
 
   movers: (window: MoverWindow, direction: 'up' | 'down', signal?: AbortSignal) =>
     get<Mover[]>('/api/market/movers', { window, direction, limit: 10 }, signal),
+
+  status: (signal?: AbortSignal) => get<MarketStatus>('/api/market/status', {}, signal),
 
   mostListed: (signal?: AbortSignal) => get<ListedItem[]>('/api/market/most-listed', { limit: 10 }, signal),
 }

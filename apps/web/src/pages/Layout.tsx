@@ -1,16 +1,18 @@
 import { Link, Outlet } from 'react-router'
-import { SearchBox } from '../components/SearchBox'
+import { DataFreshness } from '../components/DataFreshness'
 
 export function Layout() {
   return (
     <div className="app">
       <header className="header">
         <Link to="/" className="brand">
-          <img src="/favicon.svg" alt="" width={28} height={28} />
+          <img src="/favicon.svg" alt="" width={30} height={30} />
           <span>Goblin Exchange</span>
         </Link>
-        <span className="region">EU commodities</span>
-        <SearchBox />
+        <span className="header-right">
+          <DataFreshness />
+          <span className="region">EU · Commodities</span>
+        </span>
       </header>
       <main className="main">
         <Outlet />
