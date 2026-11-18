@@ -1,6 +1,8 @@
 export const INGESTION_QUEUE = 'ingestion';
 export const INGEST_COMMODITIES_JOB = 'ingest-commodities';
 export const COMMODITIES_SCHEDULER_ID = 'commodities-poll';
+/** Fixed id of the one-off run queued at boot (deduplicates concurrent boots). */
+export const COMMODITIES_BOOT_JOB_ID = 'commodities-boot';
 
 /**
  * Blizzard publishes a new snapshot about hourly, at no fixed minute.

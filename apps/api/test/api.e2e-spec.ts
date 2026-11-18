@@ -325,12 +325,14 @@ describe('REST API (e2e)', () => {
       ]);
     });
 
-    it('reports when the newest snapshot was taken and fetched', async () => {
+    it('reports when the newest snapshot was taken and fetched, and its size', async () => {
       const res = await http().get('/api/market/status').expect(200);
 
       expect(res.body).toEqual({
         snapshotAt: '2026-11-13T10:00:00.000Z',
         fetchedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        auctionCount: 1,
+        itemCount: 2, // HERB and ORE
       });
     });
 

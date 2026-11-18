@@ -1,9 +1,9 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Logger, Module } from '@nestjs/common';
+import { ConditionalModule, ConfigModule, ConfigService } from '@nestjs/config';
 import { ResilienceModule } from '@nestjs/resilience';
 import { blizzardConfig } from './config/blizzard.config';
-import { type Env, envSchema } from './config/env.schema';
+import { type Env, envSchema, isIngestionEnabled } from './config/env.schema';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { ItemsModule } from './items/items.module';
 import { MarketModule } from './market/market.module';
@@ -29,7 +29,22 @@ import { PrismaModule } from './prisma/prisma.module';
       }),
     }),
     PrismaModule,
-    IngestionModule,
+    // Like Spring's @ConditionalOnProperty: with INGESTION_ENABLED=false the module
+    // (queue, scheduler and worker) isn't registered at all, so this instance never
+    // touches the ingestion queue: it neither changes the schedule nor takes jobs.
+    ConditionalModule.registerWhen(
+      IngestionModule,
+      (env) => {
+        const enabled = isIngestionEnabled(env);
+        if (!enabled) {
+          new Logger('IngestionModule').warn(
+            'INGESTION_ENABLED=false: commodities ingestion is not running on this instance',
+          );
+        }
+        return enabled;
+      },
+      { debug: false },
+    ),
     MarketModule,
     ItemsModule,
   ],

@@ -63,6 +63,10 @@ const WINDOW_INTERVAL: Record<MoverWindow, string> = { '24h': '24 hours', '7d': 
 export interface MarketStatus {
   snapshotAt: Date | null;
   fetchedAt: Date | null;
+  /** Listings in the newest snapshot. */
+  auctionCount: number | null;
+  /** Distinct items priced in the newest snapshot. */
+  itemCount: number | null;
 }
 
 @Injectable()
@@ -176,15 +180,26 @@ export class MarketService {
 
   /**
    * How fresh the data is: when Blizzard took the newest snapshot (its Last-Modified)
-   * and when we fetched it. Null before the first ingestion.
+   * and when we fetched it, plus its size. Null before the first ingestion.
    */
   async getStatus(): Promise<MarketStatus> {
     const latest = await this.prisma.snapshot.findFirst({
       where: { region: this.config.region },
       orderBy: { lastModified: 'desc' },
-      select: { lastModified: true, fetchedAt: true },
+      select: {
+        lastModified: true,
+        fetchedAt: true,
+        auctionCount: true,
+        // COUNT(*) on the price table's primary key (snapshot_id, item_id): an index-only scan.
+        _count: { select: { prices: true } },
+      },
     });
-    return { snapshotAt: latest?.lastModified ?? null, fetchedAt: latest?.fetchedAt ?? null };
+    return {
+      snapshotAt: latest?.lastModified ?? null,
+      fetchedAt: latest?.fetchedAt ?? null,
+      auctionCount: latest?.auctionCount ?? null,
+      itemCount: latest?._count.prices ?? null,
+    };
   }
 
   private latestSnapshot(): Prisma.Sql {

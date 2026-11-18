@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { aggregateCommodityStream, readCommodityAuctions } from './commodity-stream';
@@ -19,6 +19,7 @@ describe('commodity stream', () => {
     const result = await aggregateCommodityStream(createReadStream(FIXTURE));
 
     expect(result).toEqual({
+      payloadBytes: statSync(FIXTURE).size,
       auctionCount: 5,
       invalidCount: 0,
       items: [
@@ -90,6 +91,7 @@ describe('commodity stream', () => {
 
     const result = await aggregateCommodityStream(body);
 
+    expect(result.payloadBytes).toBeGreaterThan(0);
     expect(result.auctionCount).toBe(LISTINGS);
     expect(result.items).toHaveLength(ITEMS);
   }, 30_000);
