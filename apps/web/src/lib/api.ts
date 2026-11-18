@@ -81,6 +81,8 @@ export interface ListedItem {
 export interface MarketStatus {
   snapshotAt: string | null
   fetchedAt: string | null
+  auctionCount: number | null
+  itemCount: number | null
 }
 
 /** A non-2xx response. `messages` holds the API's validation reasons, if any. */

@@ -60,6 +60,8 @@ export function toListedItemResponse(item: ListedItem): ListedItemResponse {
 export const marketStatusResponseSchema = z.object({
   snapshotAt: isoDateSchema.nullable().describe('When Blizzard took the newest snapshot'),
   fetchedAt: isoDateSchema.nullable().describe('When we ingested it'),
+  auctionCount: z.number().int().nullable().describe('Listings in the newest snapshot'),
+  itemCount: z.number().int().nullable().describe('Distinct items priced in the newest snapshot'),
 });
 export type MarketStatusResponse = z.infer<typeof marketStatusResponseSchema>;
 
@@ -67,5 +69,7 @@ export function toMarketStatusResponse(status: MarketStatus): MarketStatusRespon
   return {
     snapshotAt: status.snapshotAt?.toISOString() ?? null,
     fetchedAt: status.fetchedAt?.toISOString() ?? null,
+    auctionCount: status.auctionCount,
+    itemCount: status.itemCount,
   };
 }

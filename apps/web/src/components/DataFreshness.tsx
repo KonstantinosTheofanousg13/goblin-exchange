@@ -45,10 +45,15 @@ export function DataFreshness() {
   const taken = new Date(snapshotAt)
   const age = now - taken.getTime()
   const time = taken.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const { auctionCount, itemCount } = status.data
+  const size =
+    auctionCount != null && itemCount != null
+      ? ` This snapshot has ${auctionCount.toLocaleString()} listings across ${itemCount.toLocaleString()} items.`
+      : ''
   return (
     <span
       className={`freshness ${age > STALE_AFTER_MS ? 'stale' : ''}`}
-      title="Blizzard publishes an auction house snapshot about once an hour; we check for a new one every 15 minutes."
+      title={`Blizzard publishes an auction house snapshot about once an hour; we check for a new one every 15 minutes.${size}`}
     >
       <span className="freshness-dot" aria-hidden="true" />
       Data from {time} · {formatAge(Math.max(0, age))}
