@@ -24,6 +24,10 @@ export type IngestionResult =
       items: number;
       auctions: number;
       invalid: number;
+      /** JSON payload size in bytes. */
+      payloadBytes: number;
+      /** Wall time of the whole run: fetch + parse + store. */
+      durationMs: number;
     };
 
 /**
@@ -41,6 +45,7 @@ export class IngestionService {
   ) {}
 
   async ingestCommodities(): Promise<IngestionResult> {
+    const startedAt = performance.now();
     const region = this.config.region;
     const latest = await this.prisma.snapshot.findFirst({
       where: { region },
@@ -61,7 +66,10 @@ export class IngestionService {
       return { status: 'unchanged', lastModified };
     }
 
+    this.logger.log(`Downloading snapshot ${lastModified.toISOString()}`);
+    const downloadStartedAt = performance.now();
     const aggregate = await aggregateCommodityStream(body);
+    const storeStartedAt = performance.now();
     if (aggregate.invalidCount > 0) {
       this.logger.warn(`Skipped ${aggregate.invalidCount} listings with an unexpected shape`);
     }
@@ -77,8 +85,15 @@ export class IngestionService {
       throw error;
     }
 
+    const finishedAt = performance.now();
+    const durationMs = Math.round(finishedAt - startedAt);
     this.logger.log(
-      `Ingested snapshot ${lastModified.toISOString()}: ${aggregate.items.length} items, ${aggregate.auctionCount} auctions`,
+      `Ingested snapshot ${lastModified.toISOString()}: ${aggregate.items.length} items, ` +
+        `${aggregate.auctionCount} auctions, ${formatMegabytes(aggregate.payloadBytes)} ` +
+        `in ${formatSeconds(durationMs)} ` +
+        `(request ${formatSeconds(downloadStartedAt - startedAt)}, ` +
+        `download+parse ${formatSeconds(storeStartedAt - downloadStartedAt)}, ` +
+        `store ${formatSeconds(finishedAt - storeStartedAt)})`,
     );
     return {
       status: 'ingested',
@@ -87,6 +102,8 @@ export class IngestionService {
       items: aggregate.items.length,
       auctions: aggregate.auctionCount,
       invalid: aggregate.invalidCount,
+      payloadBytes: aggregate.payloadBytes,
+      durationMs,
     };
   }
 
@@ -131,4 +148,12 @@ export class IngestionService {
 /** Prisma's unique-constraint error. Matched by code, not instanceof (see blizzard.resilience.ts). */
 function isUniqueViolation(error: unknown): boolean {
   return (error as { code?: unknown } | null)?.code === 'P2002';
+}
+
+function formatSeconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
