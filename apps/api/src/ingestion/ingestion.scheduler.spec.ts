@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { blizzardConfig, type BlizzardConfig } from '../config/blizzard.config';
 import {
+  COMMODITIES_BOOT_JOB_ID,
   COMMODITIES_POLL_INTERVAL_MS,
   COMMODITIES_SCHEDULER_ID,
   INGEST_COMMODITIES_JOB,
@@ -15,6 +16,7 @@ describe('IngestionScheduler', () => {
   const queue = {
     upsertJobScheduler: jest.fn(),
     removeJobScheduler: jest.fn(),
+    add: jest.fn(),
   };
 
   async function createScheduler(credentials: Partial<BlizzardConfig>) {
@@ -52,12 +54,30 @@ describe('IngestionScheduler', () => {
     expect(queue.removeJobScheduler).not.toHaveBeenCalled();
   });
 
+  it('queues a one-off run at boot, deduplicated by a fixed job id', async () => {
+    const scheduler = await createScheduler({ clientId: 'id', clientSecret: 'secret' });
+
+    await scheduler.onApplicationBootstrap();
+
+    expect(queue.add).toHaveBeenCalledWith(
+      INGEST_COMMODITIES_JOB,
+      {},
+      expect.objectContaining({
+        jobId: COMMODITIES_BOOT_JOB_ID,
+        attempts: 3,
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
+    );
+  });
+
   it('does not schedule (and removes a stale schedule) without credentials', async () => {
     const scheduler = await createScheduler({});
 
     await scheduler.onApplicationBootstrap();
 
     expect(queue.upsertJobScheduler).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
     expect(queue.removeJobScheduler).toHaveBeenCalledWith(COMMODITIES_SCHEDULER_ID);
   });
 });
