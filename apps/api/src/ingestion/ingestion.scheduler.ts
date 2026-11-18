@@ -1,7 +1,10 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+} from '@nestjs/common';
 import type { JobsOptions, Queue } from 'bullmq';
-import { blizzardConfig, type BlizzardConfig } from '../config/blizzard.config';
 import {
   COMMODITIES_BOOT_JOB_ID,
   COMMODITIES_POLL_INTERVAL_MS,
@@ -24,24 +27,16 @@ const JOB_OPTIONS: JobsOptions = {
  * Registers the recurring ingestion job in Redis on startup, and runs one ingestion now.
  * upsertJobScheduler is idempotent per id: every instance can call it on boot,
  * and there is still only one schedule (like Quartz with a clustered JobStore).
+ * Only registered when INGESTION_ENABLED is true (see AppModule), and then the
+ * env schema guarantees Blizzard credentials are set.
  */
 @Injectable()
 export class IngestionScheduler implements OnApplicationBootstrap {
   private readonly logger = new Logger(IngestionScheduler.name);
 
-  constructor(
-    @InjectQueue(INGESTION_QUEUE) private readonly queue: Queue,
-    @Inject(blizzardConfig.KEY) private readonly config: BlizzardConfig,
-  ) {}
+  constructor(@InjectQueue(INGESTION_QUEUE) private readonly queue: Queue) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    if (!this.config.clientId || !this.config.clientSecret) {
-      // Every run would fail without credentials: don't schedule, and drop a stale schedule.
-      await this.queue.removeJobScheduler(COMMODITIES_SCHEDULER_ID);
-      this.logger.warn('Blizzard credentials not configured: commodities ingestion is not scheduled');
-      return;
-    }
-
     await this.queue.upsertJobScheduler(
       COMMODITIES_SCHEDULER_ID,
       { every: COMMODITIES_POLL_INTERVAL_MS },
@@ -57,7 +52,12 @@ export class IngestionScheduler implements OnApplicationBootstrap {
     await this.queue.add(
       INGEST_COMMODITIES_JOB,
       {},
-      { ...JOB_OPTIONS, jobId: COMMODITIES_BOOT_JOB_ID, removeOnComplete: true, removeOnFail: true },
+      {
+        ...JOB_OPTIONS,
+        jobId: COMMODITIES_BOOT_JOB_ID,
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
     );
     this.logger.log(
       `Commodities ingestion scheduled every ${COMMODITIES_POLL_INTERVAL_MS / 60_000} minutes, first run queued now`,

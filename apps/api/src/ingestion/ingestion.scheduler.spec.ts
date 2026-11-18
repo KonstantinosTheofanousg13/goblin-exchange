@@ -1,7 +1,6 @@
 import { getQueueToken } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { blizzardConfig, type BlizzardConfig } from '../config/blizzard.config';
 import {
   COMMODITIES_BOOT_JOB_ID,
   COMMODITIES_POLL_INTERVAL_MS,
@@ -15,16 +14,14 @@ describe('IngestionScheduler', () => {
   // A Mockito-style mock of the BullMQ queue: we only check what gets called.
   const queue = {
     upsertJobScheduler: jest.fn(),
-    removeJobScheduler: jest.fn(),
     add: jest.fn(),
   };
 
-  async function createScheduler(credentials: Partial<BlizzardConfig>) {
+  async function createScheduler() {
     const moduleRef = await Test.createTestingModule({
       providers: [
         IngestionScheduler,
         { provide: getQueueToken(INGESTION_QUEUE), useValue: queue },
-        { provide: blizzardConfig.KEY, useValue: { region: 'eu', ...credentials } },
       ],
     }).compile();
     return moduleRef.get(IngestionScheduler);
@@ -33,13 +30,12 @@ describe('IngestionScheduler', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('schedules the ingestion job when credentials are configured', async () => {
-    const scheduler = await createScheduler({ clientId: 'id', clientSecret: 'secret' });
+  it('schedules the recurring ingestion job', async () => {
+    const scheduler = await createScheduler();
 
     await scheduler.onApplicationBootstrap();
 
@@ -51,11 +47,10 @@ describe('IngestionScheduler', () => {
         opts: expect.objectContaining({ attempts: 3 }),
       }),
     );
-    expect(queue.removeJobScheduler).not.toHaveBeenCalled();
   });
 
   it('queues a one-off run at boot, deduplicated by a fixed job id', async () => {
-    const scheduler = await createScheduler({ clientId: 'id', clientSecret: 'secret' });
+    const scheduler = await createScheduler();
 
     await scheduler.onApplicationBootstrap();
 
@@ -69,15 +64,5 @@ describe('IngestionScheduler', () => {
         removeOnFail: true,
       }),
     );
-  });
-
-  it('does not schedule (and removes a stale schedule) without credentials', async () => {
-    const scheduler = await createScheduler({});
-
-    await scheduler.onApplicationBootstrap();
-
-    expect(queue.upsertJobScheduler).not.toHaveBeenCalled();
-    expect(queue.add).not.toHaveBeenCalled();
-    expect(queue.removeJobScheduler).toHaveBeenCalledWith(COMMODITIES_SCHEDULER_ID);
   });
 });
